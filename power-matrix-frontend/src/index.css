@@ -1,0 +1,6 @@
+@tailwind utilities;
+
+/* smooth fonts */
+:root { color-scheme: dark; }
+html, body, #root { height: 100%; }
+/* body { @apply bg text-white antialiased; } */
