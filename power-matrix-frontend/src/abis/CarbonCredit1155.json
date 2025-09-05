@@ -42,7 +42,7 @@
         {
           "indexed": false,
           "internalType": "uint16",
-          "name": "vintageYear",
+          "name": "vintage",
           "type": "uint16"
         },
         {
@@ -67,7 +67,7 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "by",
+          "name": "user",
           "type": "address"
         },
         {
@@ -84,9 +84,9 @@
         },
         {
           "indexed": false,
-          "internalType": "uint256",
-          "name": "when",
-          "type": "uint256"
+          "internalType": "string",
+          "name": "memo",
+          "type": "string"
         }
       ],
       "name": "Retired",
@@ -366,25 +366,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "id",
-          "type": "uint256"
-        }
-      ],
-      "name": "exists",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes32",
           "name": "role",
           "type": "bytes32"
@@ -497,12 +478,12 @@
     },
     {
       "inputs": [],
-      "name": "name",
+      "name": "nextProjectId",
       "outputs": [
         {
-          "internalType": "string",
+          "internalType": "uint256",
           "name": "",
-          "type": "string"
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -535,12 +516,17 @@
         },
         {
           "internalType": "bool",
-          "name": "exists",
+          "name": "active",
           "type": "bool"
         },
         {
           "internalType": "uint256",
           "name": "retired",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "minted",
           "type": "uint256"
         }
       ],
@@ -579,6 +565,29 @@
         }
       ],
       "name": "retire",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "id",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "memo",
+          "type": "string"
+        }
+      ],
+      "name": "retireWithNote",
       "outputs": [],
       "stateMutability": "nonpayable",
       "type": "function"
@@ -699,38 +708,6 @@
           "internalType": "bool",
           "name": "",
           "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [],
-      "name": "symbol",
-      "outputs": [
-        {
-          "internalType": "string",
-          "name": "",
-          "type": "string"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "uint256",
-          "name": "id",
-          "type": "uint256"
-        }
-      ],
-      "name": "totalSupply",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
         }
       ],
       "stateMutability": "view",

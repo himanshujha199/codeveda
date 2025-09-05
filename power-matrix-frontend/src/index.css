@@ -1,6 +1,115 @@
+@tailwind base;
+@tailwind components;
 @tailwind utilities;
 
-/* smooth fonts */
-:root { color-scheme: dark; }
-html, body, #root { height: 100%; }
-/* body { @apply bg text-white antialiased; } */
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    /* Dark theme solar energy platform */
+    --background: 215 28% 7%;
+    --background-secondary: 215 25% 10%;
+    --foreground: 210 40% 98%;
+
+    --card: 215 25% 10%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 215 25% 10%;
+    --popover-foreground: 210 40% 98%;
+
+    /* Cyan/Teal primary color scheme */
+    --primary: 174 100% 41%;
+    --primary-foreground: 215 28% 7%;
+    --primary-glow: 174 100% 50%;
+
+    /* Subtle secondary colors */
+    --secondary: 217 32% 17%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 32% 17%;
+    --muted-foreground: 215 20% 65%;
+
+    --accent: 174 100% 41%;
+    --accent-foreground: 215 28% 7%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 32% 17%;
+    --input: 217 32% 17%;
+    --ring: 174 100% 41%;
+
+    --radius: 0.75rem;
+
+    /* Custom design tokens */
+    --gradient-primary: linear-gradient(135deg, hsl(174 100% 41%), hsl(217 91% 60%));
+    --gradient-secondary: linear-gradient(135deg, hsl(174 100% 41% / 0.1), hsl(217 91% 60% / 0.1));
+    --gradient-hero: linear-gradient(135deg, hsl(174 100% 50%), hsl(217 91% 60%), hsl(268 87% 67%));
+    --shadow-glow: 0 0 40px hsl(174 100% 41% / 0.3);
+    --shadow-primary: 0 10px 30px -10px hsl(174 100% 41% / 0.4);
+
+    /* Network visualization colors */
+    --network-node: 174 100% 41%;
+    --network-connection: 217 91% 60%;
+    --network-zone: 45 100% 60%;
+
+    --sidebar-background: 215 25% 10%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 174 100% 41%;
+    --sidebar-primary-foreground: 215 28% 7%;
+    --sidebar-accent: 217 32% 17%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217 32% 17%;
+    --sidebar-ring: 174 100% 41%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
