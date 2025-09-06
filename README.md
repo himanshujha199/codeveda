@@ -1,4 +1,4 @@
-# Power Matrix — Carbon Credit Trading & Funding Platform
+# Power Matrix - Carbon Credit Trading & Funding Platform
 
 A full-stack prototype for a carbon-credit marketplace on Ethereum. Users can **claim**, **trade**, and **retire** carbon credits and crowdfund **green projects** that automatically distribute credits to investors when funded.
 
