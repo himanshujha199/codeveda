@@ -1,162 +1,175 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/security/ReentrancyGuard.sol";
-import {CarbonCredit1155} from "./CarbonCredit1155.sol";
+import "./CarbonCredit1155.sol"; // uses AccessControl + mint/balanceOf/hasRole
 
-contract GreenFunding is AccessControl, ReentrancyGuard {
-    bytes32 public constant VERIFIER_ROLE = keccak256("VERIFIER_ROLE");
-
-    CarbonCredit1155 public immutable carbon;
+contract GreenFunding {
+    CarbonCredit1155 public carbon;
 
     struct Proposal {
         uint256 id;
-        address owner;          // project owner
-        string  title;
-        string  metadataURI;
-        uint256 goal;           // target ETH
-        uint256 deadline;       // block timestamp limit
-        bool    approved;       // regulator approved
-        bool    withdrawn;      // ETH withdrawn by owner (if successful)
-        uint256 raised;         // total ETH raised
-        uint256 projectTokenId; // credits bucket for distribution (0 until set)
-        bool    distributed;    // credits sent to investors
+        address owner;
+        string title;
+        string metadataURI;
+        uint256 goal;        // wei
+        uint256 deadline;    // ts
+        bool approved;
+        bool withdrawn;
+        uint256 raised;      // wei
+        uint256 projectTokenId;
+        bool distributed;
+        uint256 assignedCredits; // total credits to distribute when goal is hit
     }
 
     uint256 public nextId = 1;
     mapping(uint256 => Proposal) public proposals;
 
-    // contribution tracking for pro-rata distribution
-    mapping(uint256 => address[]) public contributors;            // proposalId -> list
-    mapping(uint256 => mapping(address => uint256)) public amount; // proposalId -> addr -> ETH
+    // contributions & funder list
+    mapping(uint256 => mapping(address => uint256)) public contributions;
+    mapping(uint256 => address[]) public funders;
+    mapping(uint256 => mapping(address => bool)) public isFunder;
 
-    event Created(uint256 indexed id, address indexed owner);
-    event Approved(uint256 indexed id);
-    event Funded(uint256 indexed id, address indexed from, uint256 value);
-    event Withdrawn(uint256 indexed id, uint256 value);
-    event Refunded(uint256 indexed id, address indexed to, uint256 value);
-    event ProjectLinked(uint256 indexed id, uint256 tokenId);
+    event ProposalCreated(uint256 indexed id, address indexed owner, string title, uint256 goal, uint256 deadline);
+    event Approved(uint256 indexed id, uint256 tokenId, uint256 credits);
+    event Funded(uint256 indexed id, address indexed from, uint256 amount);
     event Distributed(uint256 indexed id, uint256 totalCredits);
+    event Withdrawn(uint256 indexed id, address indexed to, uint256 amount);
+    event Refunded(uint256 indexed id, address indexed to, uint256 amount);
 
     constructor(CarbonCredit1155 _carbon) {
         carbon = _carbon;
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(VERIFIER_ROLE, msg.sender);
     }
 
-    function create(
-        string calldata title,
-        string calldata metadataURI,
-        uint256 goalWei,
-        uint256 durationDays
-    ) external returns (uint256 id) {
-        require(goalWei > 0 && durationDays > 0, "bad params");
-        id = nextId++;
+    // --- util ---
+    function _isRegulator(address a) internal view returns (bool) {
+        return carbon.hasRole(carbon.VERIFIER_ROLE(), a)
+            || carbon.hasRole(carbon.DEFAULT_ADMIN_ROLE(), a);
+    }
+
+    // --- lifecycle ---
+    function create(string memory title, string memory meta, uint256 goalWei, uint256 durationDays) external {
+        require(goalWei > 0, "goal=0");
+        require(durationDays > 0, "dur=0");
+        uint256 id = nextId++;
         proposals[id] = Proposal({
             id: id,
             owner: msg.sender,
             title: title,
-            metadataURI: metadataURI,
+            metadataURI: meta,
             goal: goalWei,
             deadline: block.timestamp + durationDays * 1 days,
             approved: false,
             withdrawn: false,
             raised: 0,
             projectTokenId: 0,
-            distributed: false
+            distributed: false,
+            assignedCredits: 0
         });
-        emit Created(id, msg.sender);
+        emit ProposalCreated(id, msg.sender, title, goalWei, block.timestamp + durationDays * 1 days);
     }
 
-    function approve(uint256 id) external onlyRole(VERIFIER_ROLE) {
+    /// Regulator approves AND assigns project token + credits pool.
+    function approve(uint256 id, uint256 tokenId, uint256 credits)
+        external
+    {
+        require(_isRegulator(msg.sender), "not regulator");
         Proposal storage p = proposals[id];
+        require(p.id != 0, "bad id");
         require(!p.approved, "already");
+        require(credits > 0, "credits=0");
+        require(tokenId != 0, "tokenId=0");
+
         p.approved = true;
-        emit Approved(id);
+        p.projectTokenId = tokenId;
+        p.assignedCredits = credits;
+
+        emit Approved(id, tokenId, credits);
     }
 
-    function fund(uint256 id) external payable nonReentrant {
+    // --- funding ---
+    function fund(uint256 id) external payable {
         Proposal storage p = proposals[id];
+        require(p.id != 0, "bad id");
         require(p.approved, "not approved");
         require(block.timestamp < p.deadline, "ended");
-        require(msg.value > 0, "zero");
-        if (amount[id][msg.sender] == 0) {
-            contributors[id].push(msg.sender);
-        }
-        amount[id][msg.sender] += msg.value;
+        require(msg.value > 0, "no eth");
+        require(msg.sender != p.owner, "owner");
+        require(!_isRegulator(msg.sender), "regulator");
+
+        // prevent over-funding; revert if exceeding remaining
+        uint256 remaining = p.goal - p.raised;
+        require(msg.value <= remaining, "exceeds goal");
+
         p.raised += msg.value;
+        contributions[id][msg.sender] += msg.value;
+        if (!isFunder[id][msg.sender]) {
+            isFunder[id][msg.sender] = true;
+            funders[id].push(msg.sender);
+        }
         emit Funded(id, msg.sender, msg.value);
+
+        // auto-distribute when goal hit (only once)
+        if (p.raised == p.goal && !p.distributed) {
+            _distribute(id);
+        }
     }
 
-    function withdraw(uint256 id) external nonReentrant {
+    function _distribute(uint256 id) internal {
         Proposal storage p = proposals[id];
-        require(msg.sender == p.owner, "not owner");
-        require(block.timestamp >= p.deadline, "not ended");
-        require(p.raised >= p.goal, "goal not met");
-        require(!p.withdrawn, "already");
-        p.withdrawn = true;
-        (bool ok, ) = payable(p.owner).call{value: p.raised}("");
-        require(ok, "eth xfer failed");
-        emit Withdrawn(id, p.raised);
-    }
+        require(p.assignedCredits > 0, "no credits");
+        require(p.projectTokenId != 0, "no token");
+        address[] storage list = funders[id];
+        require(list.length > 0, "no funders");
 
-    function refund(uint256 id) external nonReentrant {
-        Proposal storage p = proposals[id];
-        require(block.timestamp >= p.deadline, "not ended");
-        require(p.raised < p.goal, "goal met");
-        uint256 a = amount[id][msg.sender];
-        require(a > 0, "no contrib");
-        amount[id][msg.sender] = 0;
-        (bool ok, ) = payable(msg.sender).call{value: a}("");
-        require(ok, "refund failed");
-        emit Refunded(id, msg.sender, a);
-    }
+        uint256 totalCredits = p.assignedCredits;
+        uint256 minted = 0;
 
-    /** Link the funded proposal to an existing carbon project (tokenId). Regulator only. */
-    function setProject(uint256 id, uint256 tokenId) external onlyRole(VERIFIER_ROLE) {
-        Proposal storage p = proposals[id];
-        require(p.approved, "not approved");
-        require(p.projectTokenId == 0, "already set");
-        p.projectTokenId = tokenId;
-        emit ProjectLinked(id, tokenId);
-    }
-
-    /**
-     * After project completion is verified, distribute credits to all investors pro-rata.
-     * This contract must have VERIFIER_ROLE on CarbonCredit1155 to mint.
-     */
-    function distributeCredits(uint256 id, uint256 totalCredits) external onlyRole(VERIFIER_ROLE) {
-        Proposal storage p = proposals[id];
-        require(p.projectTokenId != 0, "no project");
-        require(block.timestamp >= p.deadline, "not ended");
-        require(p.raised >= p.goal, "goal not met");
-        require(!p.distributed, "already");
-        require(totalCredits > 0, "zero");
-
-        address[] storage addrs = contributors[id];
-        uint256 n = addrs.length;
-        require(n > 0, "no investors");
-
-        uint256 mintedTotal;
-        for (uint256 i = 0; i < n; i++) {
-            address addr = addrs[i];
-            uint256 paid = amount[id][addr];
-            if (paid == 0) continue;
-            uint256 share = (paid * totalCredits) / p.raised; // floor
+        // distribute pro-rata (floor), give remainder to last funder
+        for (uint256 i = 0; i < list.length; i++) {
+            address a = list[i];
+            uint256 cWei = contributions[id][a];
+            if (cWei == 0) continue;
+            uint256 share = (totalCredits * cWei) / p.goal;
+            if (i == list.length - 1) {
+                // give remainder to last
+                share = totalCredits - minted;
+            }
             if (share > 0) {
-                carbon.mint(addr, p.projectTokenId, share, "");
-                mintedTotal += share;
+                carbon.mint(a, p.projectTokenId, share, "");
+                minted += share;
             }
         }
-
-        // send any rounding leftovers to the project owner (optional policy)
-        if (mintedTotal < totalCredits) {
-            carbon.mint(p.owner, p.projectTokenId, totalCredits - mintedTotal, "");
-            mintedTotal = totalCredits;
-        }
-
         p.distributed = true;
-        emit Distributed(id, mintedTotal);
+        emit Distributed(id, totalCredits);
+    }
+
+    // --- cash flows ---
+    function withdraw(uint256 id) external {
+        Proposal storage p = proposals[id];
+        require(p.id != 0, "bad id");
+        require(msg.sender == p.owner, "not owner");
+        // allow withdraw when goal reached (success), distribution already done
+        require(p.raised == p.goal, "not success");
+        require(!p.withdrawn, "done");
+
+        p.withdrawn = true;
+        uint256 amt = p.raised;
+        (bool ok, ) = payable(p.owner).call{value: amt}("");
+        require(ok, "transfer failed");
+        emit Withdrawn(id, p.owner, amt);
+    }
+
+    function refund(uint256 id) external {
+        Proposal storage p = proposals[id];
+        require(p.id != 0, "bad id");
+        require(block.timestamp >= p.deadline, "not ended");
+        require(p.raised < p.goal, "not failed");
+
+        uint256 amt = contributions[id][msg.sender];
+        require(amt > 0, "zero");
+        contributions[id][msg.sender] = 0;
+        (bool ok, ) = payable(msg.sender).call{value: amt}("");
+        require(ok, "refund failed");
+        emit Refunded(id, msg.sender, amt);
     }
 }

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Button } from "./ui/button";
 import { Sun } from "lucide-react";
 import { useWallet, shortAddr } from "../blockchain/useWallet";
+import { useIsRegulator } from "@/blockchain/useRegulator";
 
 const Header = () => {
   const [user, setUser] = useState<{ name?: string } | null>(null);
@@ -20,6 +21,8 @@ const Header = () => {
     setUser(null);
     window.location.href = "/";
   };
+
+  const isRegulator = useIsRegulator();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
@@ -90,7 +93,13 @@ const Header = () => {
             </div>
           )}
 
-          <Button variant="hero" size="sm">Get Started</Button>
+            {isRegulator && (
+            <Button variant="hero" size="sm">
+              <a href="/regulator" className="text-foreground/80 hover:text-primary transition-colors font-medium">
+              Regulator
+              </a>
+            </Button>
+            )}
 
           {!user ? (
             <Button variant="outline" size="sm" onClick={() => (window.location.href = "/login")}>

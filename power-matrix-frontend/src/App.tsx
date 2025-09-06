@@ -10,6 +10,7 @@ import MarketPlace from "./pages/MarketPlace";
 import MarketCap from "./pages/MarketCap";
 import Login from "./pages/Login";
 import Projects from "./pages/Projects";
+import Regulator from "@/pages/Regulator";
 import { GoogleOAuthProvider } from "@react-oauth/google";
 const queryClient = new QueryClient();
 
@@ -29,6 +30,7 @@ const App = () => (
           <Route path='/marketcap' element={<MarketCap/>} />
           <Route path="/projects" element={<Projects/>} />
           <Route path='/login' element={<Login/>} />
+          <Route path="/regulator" element={<Regulator />} />
         </Routes>
       </BrowserRouter>
     </TooltipProvider>

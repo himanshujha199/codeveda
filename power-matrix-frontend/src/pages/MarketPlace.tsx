@@ -8,6 +8,14 @@ import {
   buyListing,
   ensureApprovalForAll,
 } from "@/blockchain/market";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
 
 type Row = { id: number; seller: string; tokenId: number; amount: number; priceEth: string };
 
@@ -27,6 +35,39 @@ const MarketPlace: React.FC = () => {
   // sell form (we use "price per credit (ETH)" and compute total for the bundle)
   const [sellQty, setSellQty] = useState<string>("");
   const [sellUnitEth, setSellUnitEth] = useState<string>("");
+
+  // demo datasets for exchange-style view
+  const priceHistory = [
+    { time: "09:00", price: 1.12 },
+    { time: "10:00", price: 1.18 },
+    { time: "11:00", price: 1.15 },
+    { time: "12:00", price: 1.22 },
+    { time: "13:00", price: 1.2 },
+    { time: "14:00", price: 1.27 },
+  ];
+  const orderBookDemo = {
+    bids: [
+      { price: 1.24, amount: 50 },
+      { price: 1.23, amount: 40 },
+      { price: 1.22, amount: 60 },
+      { price: 1.21, amount: 70 },
+      { price: 1.2, amount: 30 },
+    ],
+    asks: [
+      { price: 1.26, amount: 50 },
+      { price: 1.27, amount: 35 },
+      { price: 1.28, amount: 65 },
+      { price: 1.29, amount: 45 },
+      { price: 1.3, amount: 55 },
+    ],
+  };
+  const tradeHistory = [
+    { time: "13:55:10", price: 1.26, amount: 5, side: "buy" as const },
+    { time: "13:54:55", price: 1.25, amount: 3, side: "sell" as const },
+    { time: "13:54:40", price: 1.25, amount: 2, side: "buy" as const },
+    { time: "13:54:20", price: 1.27, amount: 1, side: "sell" as const },
+    { time: "13:54:05", price: 1.26, amount: 4, side: "buy" as const },
+  ];
 
   const bestAsk = useMemo(() => {
     if (!rows.length) return "--";
@@ -108,7 +149,97 @@ const MarketPlace: React.FC = () => {
     <>
       <Header />
       <div className="bg-[#10182A] min-h-screen text-white font-inter p-8 mt-16">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-7xl mx-auto">
+          {/* exchange style demo section */}
+          <div className="grid md:grid-cols-3 gap-8 mb-10">
+            {/* chart */}
+            <Card className="bg-[#181F36] rounded-2xl shadow-md border-0 md:col-span-2">
+              <CardHeader>
+                <CardTitle className="text-xl">Price Chart</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={priceHistory}>
+                      <XAxis dataKey="time" stroke="#B0B8D1" />
+                      <YAxis stroke="#B0B8D1" domain={[1.1, 1.3]} />
+                      <Tooltip
+                        contentStyle={{ background: "#232B45", border: "none" }}
+                        labelStyle={{ color: "#fff" }}
+                      />
+                      <Line type="monotone" dataKey="price" stroke="#0DF6A9" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* order book and trades */}
+            <div className="space-y-8">
+              <Card className="bg-[#181F36] rounded-2xl shadow-md border-0">
+                <CardHeader>
+                  <CardTitle className="text-xl">Order Book</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    {/* bids */}
+                    <table className="w-full text-left">
+                      <tbody>
+                        {orderBookDemo.bids.map((o, i) => (
+                          <tr key={`bid-${i}`} className="text-[#0DF6A9]">
+                            <td>{o.price.toFixed(4)}</td>
+                            <td>{o.amount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {/* asks */}
+                    <table className="w-full text-right">
+                      <tbody>
+                        {orderBookDemo.asks.map((o, i) => (
+                          <tr key={`ask-${i}`} className="text-[#FF5A5F]">
+                            <td>{o.price.toFixed(4)}</td>
+                            <td>{o.amount}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-[#181F36] rounded-2xl shadow-md border-0">
+                <CardHeader>
+                  <CardTitle className="text-xl">Recent Trades</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-[#B0B8D1]">
+                        <th className="text-left">Time</th>
+                        <th className="text-right">Price</th>
+                        <th className="text-right">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tradeHistory.map((t, i) => (
+                        <tr key={`trade-${i}`} className="border-t border-[#232B45]">
+                          <td>{t.time}</td>
+                          <td
+                            className={`text-right ${
+                              t.side === "buy" ? "text-[#0DF6A9]" : "text-[#FF5A5F]"
+                            }`}
+                          >
+                            {t.price.toFixed(4)}
+                          </td>
+                          <td className="text-right">{t.amount}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
           {/* tabs */}
           <div className="flex items-center gap-4 mb-2">
             <button
