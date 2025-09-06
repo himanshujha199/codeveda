@@ -6,6 +6,9 @@ import {
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import Header from "@/components/Header";
 
+import { generateRetirePDF } from "@/utils/cert";
+import { formatUnits } from "ethers";
+
 // --- 🔗 chain wiring ---
 import { BrowserProvider, Contract, keccak256, toUtf8Bytes } from "ethers";
 import carbonAbi from "@/abis/CarbonCredit1155.json";
@@ -212,8 +215,25 @@ const Dashboard: React.FC = () => {
       setStatus("Retiring…");
       const carbonW = (carbon!.connect(signer) as CarbonC);
       const tx = await carbonW.retire(DEFAULT_PROJECT_ID, BigInt(retireAmt));
-      await tx.wait();
-      setStatus("Retired successfully");
+      const rc = await tx.wait();
+
+      let ts = Math.floor(Date.now() / 1000);
+      try {
+        const blk = await provider.getBlock(rc.blockNumber);
+        if (blk?.timestamp) ts = Number(blk.timestamp);
+      } catch {}
+
+      await generateRetirePDF({
+        account,
+        tokenId: DEFAULT_PROJECT_ID.toString(),
+        amount: retireAmt,
+        txHash: rc.hash,
+        timestamp: ts,
+        chainName: "Hardhat (31337)",
+        projectTitle: "Power Matrix Carbon Series",
+      });
+
+      setStatus("Retired successfully · PDF downloaded");
       await handleRefresh();
     } catch (e: any) {
       setStatus(e?.shortMessage || e?.message || "Retire failed");
@@ -330,7 +350,7 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent className="pt-0">
             <div className="text-3xl font-bold text-[#FFD600]">{fmt(pmgtBalance)}</div>
-            <div className="text-[#FFD600] text-sm mt-2">Project #{DEFAULT_PROJECT_ID.toString()} · Retired total: {fmt(projectRetired)}</div>
+            {/* <div className="text-[#FFD600] text-sm mt-2">Retired Credit: {fmt(projectRetired)}</div> */}
           </CardContent>
         </Card>
       </div>
