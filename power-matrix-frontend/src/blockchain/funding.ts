@@ -10,14 +10,16 @@ function provider() {
   if (!window.ethereum) throw new Error("MetaMask not found");
   return new BrowserProvider(window.ethereum);
 }
-async function getSignerChecked() {
+export async function getSignerChecked() {
   const p = provider();
   const [acc] = await p.send("eth_requestAccounts", []);
   const net = await p.getNetwork();
-  if (Number(net.chainId) !== LOCAL_CHAIN_ID) console.warn(`Connect to ${LOCAL_CHAIN_ID}`);
+  if (Number(net.chainId) !== LOCAL_CHAIN_ID) {
+    console.warn(`Connect to ${LOCAL_CHAIN_ID} (Hardhat)`);
+  }
   return { signer: await p.getSigner(), account: acc as string, provider: p };
 }
-function contracts(conn: any) {
+export function contracts(conn: any) {
   const funding = new Contract(FUNDING_ADDR, (fundAbi as any).abi, conn);
   const carbon  = new Contract(CARBON_ADDR, (carbonAbi as any).abi, conn);
   return { funding, carbon };
@@ -32,12 +34,13 @@ export type Proposal = {
   goalEth: string;
   deadline: number;
   approved: boolean;
+  rejected: boolean;        // 👈 NEW
   withdrawn: boolean;
   raisedWei: string;
   raisedEth: string;
   projectTokenId: number;
   distributed: boolean;
-  assignedCredits: number; // NEW
+  assignedCredits: number;  // credits pool assigned at approval
 };
 
 export async function fetchProposals(): Promise<Proposal[]> {
@@ -57,12 +60,13 @@ export async function fetchProposals(): Promise<Proposal[]> {
       goalEth: formatEther(raw.goal),
       deadline: Number(raw.deadline),
       approved: Boolean(raw.approved),
+      rejected: Boolean(raw.rejected ?? false), // 👈 read flag
       withdrawn: Boolean(raw.withdrawn),
       raisedWei: raw.raised.toString(),
       raisedEth: formatEther(raw.raised),
       projectTokenId: Number(raw.projectTokenId),
       distributed: Boolean(raw.distributed),
-      assignedCredits: Number(raw.assignedCredits ?? 0), // NEW
+      assignedCredits: Number(raw.assignedCredits ?? 0),
     });
   }
   rows.sort((a, b) => b.id - a.id);
@@ -80,6 +84,7 @@ export async function createProposal(title: string, metadataURI: string, goalEth
 export async function fundProposal(id: number, amountEth: string) {
   const { signer } = await getSignerChecked();
   const { funding } = contracts(signer);
+  // Contract should cap or revert if funding would exceed goal.
   const tx = await funding.fund(BigInt(id), { value: parseEther(amountEth) });
   const rc = await tx.wait();
   return rc?.hash as string;
@@ -101,15 +106,24 @@ export async function refundContributor(id: number) {
   return rc?.hash as string;
 }
 
-/** NEW: regulator approval with tokenId + credits pool */
-// src/blockchain/funding.ts
+/** Regulator approval with tokenId + credits pool */
 export async function approveProposal(id: number, tokenId: number, credits: number) {
   const { signer } = await getSignerChecked();
   const { funding } = contracts(signer);
-  // force exact fragment in case older ABI lingers
+  // Force exact fragment in case an older ABI lingers
   const fn = (funding as any)["approve(uint256,uint256,uint256)"] || (funding as any).approve;
   const tx = await fn(BigInt(id), BigInt(tokenId), BigInt(credits));
   const rc = await tx.wait();
   return rc?.hash as string;
 }
 
+/** 👇 NEW: Regulator rejection with reason */
+export async function rejectProposal(id: number, reason: string) {
+  const { signer } = await getSignerChecked();
+  const { funding } = contracts(signer);
+  // assumes GreenFunding has: function reject(uint256 id, string calldata reason) external onlyRegulator
+  const fn = (funding as any)["reject(uint256,string)"] || (funding as any).reject;
+  const tx = await fn(BigInt(id), reason);
+  const rc = await tx.wait();
+  return rc?.hash as string;
+}

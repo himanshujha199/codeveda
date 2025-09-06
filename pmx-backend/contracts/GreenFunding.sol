@@ -19,6 +19,7 @@ contract GreenFunding {
         uint256 projectTokenId;
         bool distributed;
         uint256 assignedCredits; // total credits to distribute when goal is hit
+        bool rejected;            // NEW
     }
 
     uint256 public nextId = 1;
@@ -29,8 +30,12 @@ contract GreenFunding {
     mapping(uint256 => address[]) public funders;
     mapping(uint256 => mapping(address => bool)) public isFunder;
 
+    // rejection reason (optional)
+    mapping(uint256 => string) public rejectionReason; // NEW
+
     event ProposalCreated(uint256 indexed id, address indexed owner, string title, uint256 goal, uint256 deadline);
     event Approved(uint256 indexed id, uint256 tokenId, uint256 credits);
+    event Rejected(uint256 indexed id, string reason); // NEW
     event Funded(uint256 indexed id, address indexed from, uint256 amount);
     event Distributed(uint256 indexed id, uint256 totalCredits);
     event Withdrawn(uint256 indexed id, address indexed to, uint256 amount);
@@ -63,19 +68,19 @@ contract GreenFunding {
             raised: 0,
             projectTokenId: 0,
             distributed: false,
-            assignedCredits: 0
+            assignedCredits: 0,
+            rejected: false // NEW
         });
         emit ProposalCreated(id, msg.sender, title, goalWei, block.timestamp + durationDays * 1 days);
     }
 
     /// Regulator approves AND assigns project token + credits pool.
-    function approve(uint256 id, uint256 tokenId, uint256 credits)
-        external
-    {
+    function approve(uint256 id, uint256 tokenId, uint256 credits) external {
         require(_isRegulator(msg.sender), "not regulator");
         Proposal storage p = proposals[id];
         require(p.id != 0, "bad id");
-        require(!p.approved, "already");
+        require(!p.approved, "already approved");
+        require(!p.rejected, "already rejected"); // NEW
         require(credits > 0, "credits=0");
         require(tokenId != 0, "tokenId=0");
 
@@ -86,11 +91,31 @@ contract GreenFunding {
         emit Approved(id, tokenId, credits);
     }
 
+    /// Regulator rejects a proposal with a reason.
+    function reject(uint256 id, string calldata reason) external { // NEW
+        require(_isRegulator(msg.sender), "not regulator");
+        Proposal storage p = proposals[id];
+        require(p.id != 0, "bad id");
+        require(!p.approved, "already approved");
+        require(!p.rejected, "already rejected");
+
+        p.rejected = true;
+        // Store reason (optional)
+        if (bytes(reason).length > 0) {
+            rejectionReason[id] = reason;
+        } else {
+            rejectionReason[id] = "rejected";
+        }
+
+        emit Rejected(id, rejectionReason[id]);
+    }
+
     // --- funding ---
     function fund(uint256 id) external payable {
         Proposal storage p = proposals[id];
         require(p.id != 0, "bad id");
         require(p.approved, "not approved");
+        require(!p.rejected, "rejected"); // NEW (defense in depth)
         require(block.timestamp < p.deadline, "ended");
         require(msg.value > 0, "no eth");
         require(msg.sender != p.owner, "owner");
@@ -171,5 +196,10 @@ contract GreenFunding {
         (bool ok, ) = payable(msg.sender).call{value: amt}("");
         require(ok, "refund failed");
         emit Refunded(id, msg.sender, amt);
+    }
+
+    // --- views (optional helpers for UI) ---
+    function fundersCount(uint256 id) external view returns (uint256) { // NEW
+        return funders[id].length;
     }
 }
