@@ -244,7 +244,7 @@ const Projects: React.FC = () => {
                     type="submit"
                     className="bg-[#0DF6A9] text-[#10182A] hover:bg-[#0DF6A9]/90"
                   >
-                    Save
+                    Request
                   </Button>
                 )}
               </form>

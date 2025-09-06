@@ -1,8 +1,10 @@
 import { Button } from "./ui/button";
 import { ArrowRight } from "lucide-react";
 import GlobeVisualization from "./GlobeVisualization";
+import { useNavigate } from "react-router-dom";
 
 const HeroSection = () => {
+  const navigate = useNavigate();
   return (
     <section className="min-h-screen flex items-center justify-center relative overflow-hidden pt-20">
       {/* Background gradient */}
@@ -38,11 +40,20 @@ const HeroSection = () => {
           
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row gap-4">
-            <Button variant="hero" size="lg" className="group">
+            <Button
+              variant="hero"
+              size="lg"
+              className="group"
+              onClick={() => navigate("/marketplace")}
+            >
               Become an Investor
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
-            <Button variant="outline" size="lg">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => navigate("/projects")}
+            >
               List Your Solar Project
             </Button>
           </div>

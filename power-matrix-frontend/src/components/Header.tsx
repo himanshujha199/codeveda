@@ -23,6 +23,12 @@ const Header = () => {
   };
 
   const isRegulator = useIsRegulator();
+  // persist simple role flag for router guards
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("pmx_is_reg", isRegulator ? "true" : "false");
+    } catch {}
+  }, [isRegulator]);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border/50">
@@ -37,10 +43,12 @@ const Header = () => {
 
         {/* Navigation */}
         <nav className="hidden md:flex items-center gap-8">
-          <a href="/dashboard" className="text-foreground/80 hover:text-primary transition-colors font-medium">Dashboard</a>
+          {!isRegulator && (
+            <a href="/dashboard" className="text-foreground/80 hover:text-primary transition-colors font-medium">Dashboard</a>
+          )}
           <a href="/projects" className="text-foreground/80 hover:text-primary transition-colors font-medium">Projects</a>
           <a href="/marketplace" className="text-foreground/80 hover:text-primary transition-colors font-medium">Marketplace</a>
-          <a href="#" className="text-foreground/80 hover:text-primary transition-colors font-medium">Community</a>
+          <a href="/community" className="text-foreground/80 hover:text-primary transition-colors font-medium">Community</a>
         </nav>
 
         {/* Actions */}

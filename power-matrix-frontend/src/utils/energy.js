@@ -13,8 +13,8 @@ export function getMockEnergy() {
   const alreadyClaimed = Math.round(day * 0.35);
   const claimable = Math.max(0, day - alreadyClaimed);
 
-  // very simple conversion (for display only): 1 kWh ~ 0.0006 tCO2 -> 0.6 kgCO2
-  const kgPerKwh = 0.6;
+  // very simple conversion (for display only): 1 kWh ~ 0.0007 tCO2 -> 0.7 kgCO2
+  const kgPerKwh = 0.7;
   return {
     kwh: { day, week, month, year, claimable },
     co2kg: {

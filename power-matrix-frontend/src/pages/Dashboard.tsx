@@ -30,7 +30,7 @@ const tabs = ["Daily", "Weekly", "Monthly", "Yearly"] as const;
 type Tab = (typeof tabs)[number];
 
 // === Simple mock for energy data (replace with your IoT later) ===
-const GRID_EF_KG_PER_KWH = 0.6; // demo factor for CO₂ estimate
+const GRID_EF_KG_PER_KWH = 0.7; // demo factor for CO₂ estimate
 function mockEnergy(tab: Tab) {
   // light, deterministic-ish ranges per tab
   const base =
@@ -39,7 +39,7 @@ function mockEnergy(tab: Tab) {
     tab === "Monthly" ? 5200 + Math.floor(Math.random() * 1500) :
     60000 + Math.floor(Math.random() * 12000);
   const deltaPct = (Math.random() * 18 - 4).toFixed(0); // -4% .. +14%
-  const claimable = Math.max(0, Math.floor(base * 0.6)); // 60% demo claimable
+  const claimable = Math.max(0, Math.floor(base * 0.65)); // 60% demo claimable
   const co2kg = Math.round(base * GRID_EF_KG_PER_KWH);
   return { kwh: base, deltaPct, claimable, co2kg };
 }
@@ -162,8 +162,13 @@ const Dashboard: React.FC = () => {
       await connectWallet();
       return;
     }
+    // guard: cannot claim more than available
+    if (claimKwh > energy.claimable) {
+      setStatus("Requested kWh exceeds claimable");
+      return;
+    }
     // convert kWh → credits (simple: kWh * EF / 1000)
-    const estimateCredits = Math.floor((claimKwh * GRID_EF_KG_PER_KWH) / 1000);
+    const estimateCredits = Math.floor((claimKwh * GRID_EF_KG_PER_KWH));
     if (estimateCredits <= 0) {
       setStatus("Claim too small for a whole credit");
       return;
@@ -268,7 +273,7 @@ const Dashboard: React.FC = () => {
             <span className="font-semibold text-lg">Energy Generated</span>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-[#0DF6A9]">{fmt(energy.kwh)} kWh</div>
+            <div className="text-3xl font-bold text-[#0DF6A9]">{fmt(energy.kwh)} MWh</div>
             <div className="text-[#6EE7B7] text-sm mt-2">{energy.deltaPct}% from last period</div>
           </CardContent>
         </Card>
@@ -280,7 +285,7 @@ const Dashboard: React.FC = () => {
             <span className="font-semibold text-lg">Carbon Offset</span>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-[#A259FF]">{fmt(energy.co2kg)} kg</div>
+            <div className="text-3xl font-bold text-[#A259FF]">{fmt(energy.co2kg)} tCO₂</div>
             <div className="text-[#B0B8D1] text-sm mt-2">CO₂ equivalent</div>
           </CardContent>
         </Card>
@@ -292,9 +297,9 @@ const Dashboard: React.FC = () => {
             <span className="font-semibold text-lg">Claimable Energy</span>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="text-3xl font-bold text-[#0DF6A9]">{fmt(energy.claimable)} kWh</div>
+            <div className="text-3xl font-bold text-[#0DF6A9]">{fmt(energy.claimable)} MWh</div>
             <div className="text-[#6EE7B7] text-sm mt-2 flex items-center gap-2">
-              kWh
+              MWh
               <input
                 type="number"
                 min={1}
@@ -312,7 +317,7 @@ const Dashboard: React.FC = () => {
               </button>
             </div>
             <div className="text-xs text-[#B0B8D1] mt-2">
-              ≈ {Math.max(0, Math.floor((claimKwh * GRID_EF_KG_PER_KWH) / 1000))} credit(s) (estimate)
+              ≈ {Math.max(0, Math.floor((claimKwh * GRID_EF_KG_PER_KWH)))} credit(s) (estimate)
             </div>
           </CardContent>
         </Card>
@@ -345,7 +350,7 @@ const Dashboard: React.FC = () => {
             <div className="flex gap-6">
               <div className="bg-[#10182A] rounded-xl p-4 min-w-[120px] flex flex-col items-center gap-1 shadow">
                 <FaBolt color="#0DF6A9" size={18} />
-                <div className="text-lg text-[#0DF6A9] font-bold">{fmt(energy.kwh)} kWh</div>
+                <div className="text-lg text-[#0DF6A9] font-bold">{fmt(energy.kwh)} MWh</div>
                 <div className="text-[#B0B8D1] text-xs">Total Energy</div>
               </div>
               <div className="bg-[#10182A] rounded-xl p-4 min-w-[120px] flex flex-col items-center gap-1 shadow">
