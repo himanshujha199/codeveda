@@ -12,13 +12,15 @@ contract CarbonCredit1155 is ERC1155, AccessControl {
         return super.supportsInterface(interfaceId);
     }
 
+    /// @dev Project-level configuration
+    /// - cap == 0 means **unlimited** minting for that project
     struct Project {
         uint16 vintageYear;
-        uint256 cap;       // max credits ever
+        uint256 cap;       // max credits ever; 0 = unlimited
         string metadataURI;
         bool active;
         uint256 retired;   // total retired (global)
-        uint256 minted;    // total minted (to enforce cap)
+        uint256 minted;    // total minted (tracked; not enforced when cap == 0)
     }
 
     uint256 public nextProjectId = 1;
@@ -37,13 +39,15 @@ contract CarbonCredit1155 is ERC1155, AccessControl {
         return projects[id].metadataURI;
     }
 
-    /** Create a new credit bucket (project). Regulator only. */
+    /** Create a new credit bucket (project). Regulator only.
+     *  NOTE: cap == 0 means unlimited minting for this project.
+     */
     function createProject(
         uint16 vintageYear,
         uint256 cap,
         string memory metadataURI
     ) external onlyRole(VERIFIER_ROLE) returns (uint256 id) {
-        require(cap > 0, "cap=0");
+        // allow cap = 0 (unlimited). No require(cap > 0).
         id = nextProjectId++;
         projects[id] = Project({
             vintageYear: vintageYear,
@@ -64,7 +68,12 @@ contract CarbonCredit1155 is ERC1155, AccessControl {
         Project storage p = projects[id];
         require(p.active, "inactive");
         require(amount > 0, "amount=0");
-        require(p.minted + amount <= p.cap, "cap exceeded");
+
+        // Enforce cap only if cap != 0 (0 = unlimited)
+        if (p.cap != 0) {
+            require(p.minted + amount <= p.cap, "cap exceeded");
+        }
+
         p.minted += amount;
         _mint(to, id, amount, data);
     }

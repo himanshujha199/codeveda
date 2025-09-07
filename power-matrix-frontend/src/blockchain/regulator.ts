@@ -58,7 +58,11 @@ export async function fetchClaims() {
 export async function approveClaim(id: number, beneficiary: string, amount: number, note = "ok") {
   const { signer } = await getSignerChecked();
   const c = contract(signer);
-  const tx = await c.approve(BigInt(id), beneficiary, BigInt(amount), note);
+  // Use exact fragment to avoid overload/resolution issues
+  const fn =
+    (c as any)["approve(uint256,address,uint256,string)"] ||
+    (c as any).approve;
+  const tx = await fn(BigInt(id), beneficiary, BigInt(amount), note);
   const rc = await tx.wait();
   return rc?.hash as string;
 }

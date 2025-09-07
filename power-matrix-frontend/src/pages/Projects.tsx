@@ -95,6 +95,26 @@ const Projects: React.FC = () => {
     [proposals, isRegulator]
   );
 
+  // split into Active vs Previous
+  const activeProjects = useMemo(
+    () =>
+      visible.filter((p) => {
+        const ended = timeLeft(p.deadline) === "ended";
+        const reached = Number(p.raisedEth) >= Number(p.goalEth);
+        return !ended && !reached;
+      }),
+    [visible]
+  );
+  const previousProjects = useMemo(
+    () =>
+      visible.filter((p) => {
+        const ended = timeLeft(p.deadline) === "ended";
+        const reached = Number(p.raisedEth) >= Number(p.goalEth);
+        return ended || reached;
+      }),
+    [visible]
+  );
+
   // ---- actions ----
   async function onCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -161,6 +181,145 @@ const Projects: React.FC = () => {
       setStatus(e?.shortMessage || e?.message || "Refund failed");
     }
   }
+
+  const ProjectCard: React.FC<{ p: Proposal }> = ({ p }) => {
+    const imgFromMeta =
+      /image:(https?:\/\/\S+)/i.exec(p.metadataURI || "")?.[1];
+    const img = imgFromMeta || FALLBACK_IMG;
+
+    const progress = pct(p.raisedEth, p.goalEth);
+    const ended = timeLeft(p.deadline) === "ended";
+    const reached = Number(p.raisedEth) >= Number(p.goalEth);
+    const failed = ended && !reached;
+    const isOwner = account?.toLowerCase() === p.owner.toLowerCase();
+    const canFund = p.approved && !reached && !isOwner && !isRegulator;
+
+    return (
+      <Card className="bg-[#181F36] rounded-2xl shadow-md border-0 overflow-hidden">
+        <img src={img} alt={p.title} className="w-full h-40 object-cover" />
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-xl">{p.title}</CardTitle>
+            <div className="ml-4 flex flex-col items-end">
+              <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#A259FF]/20">
+                <span className="text-xs text-[#B0B8D1]">Credits Pool:</span>
+                <b className="text-[#A259FF] text-base">{p.assignedCredits}</b>
+              </div>
+            </div>
+          </div>
+          <CardDescription className="text-[#B0B8D1]">
+            {p.metadataURI || "—"}
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <div className="text-sm mb-2 text-[#B0B8D1]">
+            Raised{" "}
+            <span className="text-[#FFD600] font-semibold">
+              {Number(p.raisedEth).toFixed(4)}
+            </span>{" "}
+            /{" "}
+            <span className="text-[#0DF6A9] font-semibold">
+              {Number(p.goalEth).toFixed(4)}
+            </span>{" "}
+            ETH
+          </div>
+          <Progress value={progress} />
+          <div className="mt-2 text-xs text-[#B0B8D1]">
+            Deadline: <b>{timeLeft(p.deadline)}</b>{" "}
+            {p.approved ? (
+              <span className="ml-2 px-2 py-0.5 rounded bg-[#0DF6A9]/15 text-[#0DF6A9]">
+                Approved
+              </span>
+            ) : (
+              <span className="ml-2 px-2 py-0.5 rounded bg-[#FFD600]/15 text-[#FFD600]">
+                Pending
+              </span>
+            )}
+            {p.projectTokenId ? (
+              <span className="ml-2 px-2 py-0.5 rounded bg-[#A259FF]/15 text-[#A259FF]">
+                tokenId: {p.projectTokenId}
+              </span>
+            ) : null}
+            {reached ? (
+              <span className="ml-2 px-2 py-0.5 rounded bg-[#0DF6A9]/15 text-[#0DF6A9]">
+                Goal Reached
+              </span>
+            ) : failed ? (
+              <span className="ml-2 px-2 py-0.5 rounded bg-[#FF6B6B]/15 text-[#FF6B6B]">
+                Failed
+              </span>
+            ) : null}
+          </div>
+
+          {/* Fund action (approved & active; but NOT owner/regulator and NOT reached) */}
+          {canFund ? (
+            <div className="flex items-center gap-2 mt-3">
+              <Input
+                type="number"
+                step="0.001"
+                placeholder="ETH amount"
+                value={fundAmt[p.id] || ""}
+                onChange={(e) =>
+                  setFundAmt((s) => ({
+                    ...s,
+                    [p.id]: e.target.value,
+                  }))
+                }
+                className="bg-[#10182A] border-[#232B45] text-white"
+              />
+              <Button
+                onClick={() => onFund(p)}
+                className="bg-[#0DF6A9] text-[#10182A] hover:bg-[#0DF6A9]/90"
+              >
+                Fund
+              </Button>
+            </div>
+          ) : (
+            p.approved && (
+              <div className="mt-3 text-xs text-[#B0B8D1]">
+                {reached
+                  ? "Funding goal reached"
+                  : isOwner
+                  ? "Owner cannot fund"
+                  : isRegulator
+                  ? "Regulators cannot fund"
+                  : "Funding disabled"}
+              </div>
+            )
+          )}
+
+          {/* Owner withdraw / contributor refund */}
+          {/* ✅ Allow withdraw as soon as goal is reached (no need to wait for deadline) */}
+          {reached && account?.toLowerCase() === p.owner.toLowerCase() && !p.withdrawn && (
+            <div className="mt-3">
+              <Button
+                onClick={() => onWithdraw(p)}
+                className="bg-[#A259FF] hover:bg-[#A259FF]/85"
+              >
+                Withdraw to Owner
+              </Button>
+            </div>
+          )}
+          {ended && !reached && (
+            <div className="mt-3">
+              <Button
+                onClick={() => onRefund(p)}
+                className="bg-[#232B45] hover:bg-[#232B45]/80"
+              >
+                Claim Refund
+              </Button>
+            </div>
+          )}
+        </CardContent>
+
+        <CardFooter className="flex items-center justify-between">
+          <span className="text-xs text-[#B0B8D1]">Owner: {shortAddr(p.owner)}</span>
+          <span className="text-xs text-[#B0B8D1]">ID: {p.id}</span>
+        </CardFooter>
+      </Card>
+    );
+  };
 
   return (
     <>
@@ -251,163 +410,32 @@ const Projects: React.FC = () => {
             </DialogContent>
           </Dialog>
 
-          {/* GRID */}
+          {/* ACTIVE PROJECTS */}
+          <h2 className="text-lg font-semibold mb-3 mt-4">Active Projects</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {visible.map((p) => {
-              // attempt to parse an image from metadata
-              const imgFromMeta =
-                /image:(https?:\/\/\S+)/i.exec(p.metadataURI || "")?.[1];
-              const img = imgFromMeta || FALLBACK_IMG;
-
-              const progress = pct(p.raisedEth, p.goalEth);
-              const ended = timeLeft(p.deadline) === "ended";
-              const success = ended && Number(p.raisedEth) >= Number(p.goalEth);
-              const failed = ended && Number(p.raisedEth) < Number(p.goalEth);
-              const reached = Number(p.raisedEth) >= Number(p.goalEth);
-              const isOwner =
-                account?.toLowerCase() === p.owner.toLowerCase();
-              const canFund = p.approved && !reached && !isOwner;
-
-              return (
-                <Card
-                  key={p.id}
-                  className="bg-[#181F36] rounded-2xl shadow-md border-0 overflow-hidden"
-                >
-                  <img src={img} alt={p.title} className="w-full h-40 object-cover" />
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-xl">{p.title}</CardTitle>
-                      <div className="ml-4 flex flex-col items-end">
-                        <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-[#A259FF]/20">
-                          <span className="text-xs text-[#B0B8D1]">Credits Pool:</span>
-                          <b className="text-[#A259FF] text-base">{p.assignedCredits}</b>
-                        </div>
-                      </div>
-                    </div>
-                    <CardDescription className="text-[#B0B8D1]">
-                      {p.metadataURI || "—"}
-                    </CardDescription>
-                  </CardHeader>
-
-                  <CardContent>
-                    <div className="text-sm mb-2 text-[#B0B8D1]">
-                      Raised{" "}
-                      <span className="text-[#FFD600] font-semibold">
-                        {Number(p.raisedEth).toFixed(4)}
-                      </span>{" "}
-                      /{" "}
-                      <span className="text-[#0DF6A9] font-semibold">
-                        {Number(p.goalEth).toFixed(4)}
-                      </span>{" "}
-                      ETH
-                    </div>
-                    <Progress value={progress} />
-                    <div className="mt-2 text-xs text-[#B0B8D1]">
-                      Deadline: <b>{timeLeft(p.deadline)}</b>{" "}
-                      {p.approved ? (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[#0DF6A9]/15 text-[#0DF6A9]">
-                          Approved
-                        </span>
-                      ) : (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[#FFD600]/15 text-[#FFD600]">
-                          Pending
-                        </span>
-                      )}
-                      {p.projectTokenId ? (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[#A259FF]/15 text-[#A259FF]">
-                          tokenId: {p.projectTokenId}
-                        </span>
-                      ) : null}
-                      {success ? (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[#0DF6A9]/15 text-[#0DF6A9]">
-                          Successful
-                        </span>
-                      ) : failed ? (
-                        <span className="ml-2 px-2 py-0.5 rounded bg-[#FF6B6B]/15 text-[#FF6B6B]">
-                          Failed
-                        </span>
-                      ) : null}
-                    </div>
-
-                    {/* Fund action (approved & active; but NOT owner and NOT reached) */}
-                    {canFund ? (
-                      <div className="flex items-center gap-2 mt-3">
-                        <Input
-                          type="number"
-                          step="0.001"
-                          placeholder="ETH amount"
-                          value={fundAmt[p.id] || ""}
-                          onChange={(e) =>
-                            setFundAmt((s) => ({
-                              ...s,
-                              [p.id]: e.target.value,
-                            }))
-                          }
-                          className="bg-[#10182A] border-[#232B45] text-white"
-                        />
-                        <Button
-                          onClick={() => onFund(p)}
-                          className="bg-[#0DF6A9] text-[#10182A] hover:bg-[#0DF6A9]/90"
-                        >
-                          Fund
-                        </Button>
-                      </div>
-                    ) : (
-                      p.approved && (
-                        <div className="mt-3 text-xs text-[#B0B8D1]">
-                          {reached
-                            ? "Funding goal reached"
-                            : isOwner
-                            ? "Owner cannot fund"
-                            : "Funding disabled"}
-                        </div>
-                      )
-                    )}
-
-                    {/* Owner withdraw / contributor refund */}
-                    {ended && success && account?.toLowerCase() === p.owner.toLowerCase() && !p.withdrawn && (
-                      <div className="mt-3">
-                        <Button
-                          onClick={() => onWithdraw(p)}
-                          className="bg-[#A259FF] hover:bg-[#A259FF]/85"
-                        >
-                          Withdraw to Owner
-                        </Button>
-                      </div>
-                    )}
-                    {ended && failed && (
-                      <div className="mt-3">
-                        <Button
-                          onClick={() => onRefund(p)}
-                          className="bg-[#232B45] hover:bg-[#232B45]/80"
-                        >
-                          Claim Refund
-                        </Button>
-                      </div>
-                    )}
-                  </CardContent>
-
-                  <CardFooter className="flex items-center justify-between">
-                    <span className="text-xs text-[#B0B8D1]">Owner: {shortAddr(p.owner)}</span>
-                    <span className="text-xs text-[#B0B8D1]">ID: {p.id}</span>
-                  </CardFooter>
-                </Card>
-              );
-            })}
-
-            {!visible.length && !loading && (
+            {activeProjects.map((p) => <ProjectCard key={p.id} p={p} />)}
+            {!activeProjects.length && !loading && (
               <div className="text-[#B0B8D1] col-span-full text-center">
-                {isRegulator
-                  ? "No proposals yet."
-                  : "No approved projects yet. Check back soon!"}
+                No active projects right now.
+              </div>
+            )}
+          </div>
+
+          {/* PREVIOUS PROJECTS */}
+          <h2 className="text-lg font-semibold mb-3 mt-10">Previous Projects</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            {previousProjects.map((p) => <ProjectCard key={p.id} p={p} />)}
+            {!previousProjects.length && !loading && (
+              <div className="text-[#B0B8D1] col-span-full text-center">
+                Nothing here yet.
               </div>
             )}
           </div>
 
           <p className="text-center text-xs text-[#B0B8D1] mt-10">
-            Fund with ETH. If a project reaches its goal before the deadline, the owner can withdraw; credits are
-            <b> auto-distributed pro-rata</b> to investors. Otherwise, contributors can refund after the deadline. (Regulator sets
-            tokenId and credits pool during approval — see Regulator console.)
+            Fund with ETH. Once a project reaches its goal, credits are <b>auto-distributed pro-rata</b> to investors,
+            and the owner can immediately withdraw the ETH. If the deadline passes without reaching the goal,
+            contributors can claim refunds.
           </p>
         </div>
       </div>

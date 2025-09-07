@@ -32,7 +32,6 @@ const FALLBACK =
   "https://images.unsplash.com/photo-1509395176047-4a66953fd231?auto=format&fit=crop&w=800&q=60";
 
 const RegulatorPage: React.FC = () => {
-  // ✅ make sure we use the LOCAL hardhat chain id (31337)
   const { provider, account, connect } = useWallet(BigInt(LOCAL_CHAIN_ID));
   const isReg = useIsRegulator();
 
@@ -65,12 +64,10 @@ const RegulatorPage: React.FC = () => {
   }
   useEffect(() => { loadAll(); }, []);
 
-  // only proposals that are neither approved nor rejected
   const pendingProjects = useMemo(
     () => proposals.filter((p) => !p.approved && !p.rejected),
     [proposals]
   );
-  // only waiting claims (status = 0)
   const pendingClaims = useMemo(
     () => claims.filter((c) => c.status === 0),
     [claims]
@@ -123,7 +120,7 @@ const RegulatorPage: React.FC = () => {
             </Button>
           </div>
 
-          {/* PROJECTS */}
+          {/* ---- PROJECTS TAB ---- */}
           {tab === "projects" && (
             <div className="space-y-8">
               <section>
@@ -146,7 +143,7 @@ const RegulatorPage: React.FC = () => {
                             Deadline: <b>{timeLeft(p.deadline)}</b>
                           </div>
 
-                          {/* Approve: auto-create token + set credits pool */}
+                          {/* Approve: auto-create token (cap=0 => unlimited) + set credits pool */}
                           <div className="flex flex-col gap-2">
                             <div className="flex items-center gap-2">
                               <Input
@@ -170,7 +167,7 @@ const RegulatorPage: React.FC = () => {
                                     const carbon = new Contract(CARBON_ADDR, (carbonAbi as any).abi, signer);
 
                                     const vintage = new Date().getFullYear();
-                                    const cap = BigInt(credits);
+                                    const cap = 0n; // ✅ unlimited mint
                                     const uri = `${p.title} | auto:${p.id}`;
 
                                     // 1) Create ERC-1155 series
@@ -217,7 +214,7 @@ const RegulatorPage: React.FC = () => {
                               </Button>
                             </div>
                             <div className="text-xs text-[#B0B8D1]">
-                              A new carbon-credit series is created and linked. Credits auto-distribute to funders pro-rata when goal is reached.
+                              Creates an unlimited-mint carbon series and links it. Credits auto-distribute pro-rata when goal is reached.
                             </div>
                           </div>
 
@@ -267,7 +264,7 @@ const RegulatorPage: React.FC = () => {
             </div>
           )}
 
-          {/* CLAIMS */}
+          {/* ---- CLAIMS TAB ---- */}
           {tab === "claims" && (
             <div className="grid md:grid-cols-2 gap-6">
               {pendingClaims.map((c) => (
